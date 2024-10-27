@@ -19,7 +19,6 @@ import os
 import open3d as o3d
 import pickle
 import cv2
-import matplotlib.pyplot as plt
 from glob import glob
 from tqdm import tqdm
 
@@ -104,7 +103,7 @@ def retarget_hand_trajectory(camWorld2hand, robotWorld2ee):
     Align hand coordinates with end effector.
     retarget the 4x4 extrinsics to quaternion/translation/gripper state
     """
-    scale_factor = 0.6
+    scale_factor = 0.75
     # TODO: Scale translation more intelligently
     # Scale down the translation of the trajectory
     # so that end effector does not go out of reach of the robot
@@ -113,16 +112,14 @@ def retarget_hand_trajectory(camWorld2hand, robotWorld2ee):
     robotWorld2camWorld = robotWorld2ee @ np.linalg.inv(camWorld2hand[0])
     robotWorld2hand = robotWorld2camWorld @ camWorld2hand
 
-    # TODO: Handle rotation properly. Right now its being ignored
-    # Set end effector orientation to identity
-    robotWorld2hand[:, :3, :3] = np.eye(3)
-    # TODO: Validate align_rotation. Is it always necessary?
-    # A rotation to orient the end effector correctly, flipped upside down without this
-    align_rotation = euler2mat((0, np.pi, 0))
-    robotWorld2hand[:, :3, :3] = robotWorld2hand[:, :3, :3] @ align_rotation
+    # An arbitrary rotation to align the trajectory correctly with robot
+    align_rotation = np.eye(4)
+    align_rotation[:3, :3] = euler2mat((0, np.pi, 0))
+    robotWorld2hand = robotWorld2hand @ align_rotation
 
     robot_trajectory_quat = mat2quat(robotWorld2hand[:, :3, :3])
     robot_trajectory_pos = robotWorld2hand[:, :3, 3]
+
     # TODO: Handle gripper state properly
     robot_gripper_state = np.zeros((robotWorld2hand.shape[0], 1))
     trajectory = np.concatenate(
@@ -213,6 +210,13 @@ def write_real_sim_video(sim_imgs, base_path, valid_idxs, output_path):
     help="Input HOI4D data for real2sim",
     default="/home/sriram.sk/desktop/hoi4d_vid/_data_sriram_hoi4d_hoi4d_data_ZY20210800003_H3_C14_N42_S207_s05_T2_vid/",
 )
+@click.option(
+    "-op",
+    "--output_path",
+    type=str,
+    help="Directory to store real2sim viz",
+    default="real2sim_viz",
+)
 def main(
     env_name,
     reset_noise,
@@ -222,8 +226,10 @@ def main(
     goal_site,
     teleop_site,
     input_path,
+    output_path,
 ):
     base_path = input_path
+    os.makedirs(output_path, exist_ok=True)
 
     # seed and load environments
     np.random.seed(seed)
@@ -232,11 +238,18 @@ def main(
     env.env.mujoco_render_frames = True if "onscreen" in render else False
     goal_sid = env.sim.model.site_name2id(goal_site)
     env.sim.model.site_rgba[goal_sid][3] = 0.2  # make visible
+    # place ee target in a more suitable location / orientation
     env.sim.model.site_pos[goal_sid] = [
-        0.6,
+        0.4,
         0,
-        1.2,
-    ]  # place ee target in a more suitable location
+        1.0,
+    ]
+    env.sim.model.site_quat[goal_sid] = [
+        0,
+        0,
+        0,
+        1,
+    ]
     env.sim.forward()
 
     env.reset()
@@ -302,7 +315,10 @@ def main(
         sim_imgs.append(env.get_exteroception()["rgb:left_cam:240x424:2d"])
 
     sim_imgs = np.array(sim_imgs)
-    write_real_sim_video(sim_imgs, base_path, valid_idxs, "test.mp4")
+    output_name = base_path.replace("/", "_") + ".mp4"
+    write_real_sim_video(
+        sim_imgs, base_path, valid_idxs, f"{output_path}/{output_name}"
+    )
     # save and close
     env.close()
 

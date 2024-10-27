@@ -26,7 +26,7 @@
         <site name='workspace' type='box' size='.375 .6 .25' pos='0.475 0 1.0' group='3' rgba='0 0 1 1'/>
 
         <!-- Franka Arm-->
-        <site name='ee_target' type='box' size='.03 .07 .04' pos='0.5 0 1.1' group='1' rgba='0 1 .4 0' euler="0 3.14 3.14"/>
+        <site name='ee_target' type='box' size='.03 .07 .04' pos='0.4 0 1' group='1' rgba='0 1 .4 0' euler="0 3.14 3.14"/>
         <body pos='0 0 .823' euler='0 0 0'>
             <include file="../../../simhive/franka_sim/assets/chain0_nogripper.xml"/>
         </body>
